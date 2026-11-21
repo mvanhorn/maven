@@ -132,6 +132,14 @@ public class LifecycleDependencyResolver {
             Set<Artifact> resolvedArtifacts = resolveProjectArtifacts(
                     project, scopesToCollect, scopesToResolve, session, aggregating, projectArtifacts);
 
+            // #14081: getDependencies owns the absent-scope case. It returns an empty set and a null
+            // resolution result without resolving. Storing that placeholder would replace artifacts
+            // another step of the same project already resolved.
+            if (resolvedArtifacts instanceof ProjectArtifactsCache.ArtifactsSetWithResult absentScopes
+                    && absentScopes.getResult() == null) {
+                return;
+            }
+
             // MNG-6300: build a live-lookup map so that reactor files are always up-to-date.
             // In the concurrent builder a sibling project may install its jar *after* this
             // resolution starts, so we must read getFile() at lookup time rather than

@@ -34,6 +34,7 @@ import org.apache.maven.project.MavenProject;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class LifecycleDependencyResolverTest extends AbstractCoreMavenComponentTestCase {
@@ -78,6 +79,38 @@ class LifecycleDependencyResolverTest extends AbstractCoreMavenComponentTestCase
                 war.getArtifactMap()
                         .get("org.apache.maven.its.mng6300:mng6300-lib")
                         .getFile());
+    }
+
+    /**
+     * A later resolve with no dependency scopes must keep artifacts already resolved for the project.
+     * An empty scope set used to be stored via {@code setResolvedArtifacts}, so {@code getArtifacts()}
+     * became empty for the next mojo (https://github.com/apache/maven/issues/14081).
+     */
+    @Test
+    void testEmptyScopesDoNotReplaceResolvedArtifacts() throws Exception {
+        MavenSession session = createMavenSession(
+                new File("src/test/projects/lifecycle-dependency-resolver/pom.xml"), new Properties(), true);
+        Collection<String> scopesToCollect = null;
+        Collection<String> scopesToResolve = Collections.singletonList("compile");
+        boolean aggregating = false;
+
+        Set<Artifact> reactorArtifacts = new HashSet<>(3);
+        for (MavenProject reactorProject : session.getProjects()) {
+            reactorArtifacts.add(reactorProject.getArtifact());
+        }
+
+        MavenProject war = session.getProjects().get(2);
+        war.setArtifactFilter(artifact -> true);
+        resolver.resolveProjectDependencies(
+                war, scopesToCollect, scopesToResolve, session, aggregating, reactorArtifacts);
+
+        Set<Artifact> artifacts = new HashSet<>(war.getArtifacts());
+        assertFalse(artifacts.isEmpty());
+
+        resolver.resolveProjectDependencies(
+                war, Collections.emptySet(), Collections.emptySet(), session, aggregating, reactorArtifacts);
+
+        assertEquals(artifacts, war.getArtifacts());
     }
 
     /**
